@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 /**
  * DiceRoller
@@ -13,10 +13,19 @@ export default function DiceRoller({ dc, onResult, onBurnSanity, sanity, disable
   const [roll, setRoll]           = useState(null);
   const [bonus, setBonus]         = useState(0);
   const [rolling, setRolling]     = useState(false);
-  const [result, setResult]       = useState(null); // { total, success }
+  const [result, setResult]       = useState(null);
   const [burnCount, setBurnCount] = useState(0);
   const [sanFlash, setSanFlash]   = useState(false);
-  const diceRef = useRef(null);
+  const diceRef    = useRef(null);
+  const intervalRef = useRef(null);
+
+  // 当外部 disabled 变为 true 时，强制停止动画
+  useEffect(() => {
+    if (disabled && rolling) {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      setRolling(false);
+    }
+  }, [disabled, rolling]);
 
   const total   = roll !== null ? roll + bonus : null;
   const success = total !== null ? total >= dc  : null;
@@ -34,9 +43,11 @@ export default function DiceRoller({ dc, onResult, onBurnSanity, sanity, disable
         diceRef.current.textContent = Math.ceil(Math.random() * 20);
       }
     }, 55);
+    intervalRef.current = interval;
 
     setTimeout(() => {
-      clearInterval(interval);
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
       const finalRoll = Math.ceil(Math.random() * 20);
       const finalTotal = finalRoll;
       const finalSuccess = finalTotal >= dc;

@@ -1,13 +1,9 @@
 import { useEffect, useRef } from 'react';
+import { TypewriterText } from '../hooks/useGlitch.jsx';
 
-/**
- * NarrativeBox
- * Props:
- *   scene    — 当前场景对象
- *   result   — null | { success: bool, burnCount: number }
- */
-export default function NarrativeBox({ scene, result }) {
+export default function NarrativeBox({ scene, result, glitch = false, onContinue = null, isLastNode = false }) {
   const boxRef = useRef(null);
+  const continueRef = useRef(null);
 
   useEffect(() => {
     if (result && boxRef.current) {
@@ -15,22 +11,39 @@ export default function NarrativeBox({ scene, result }) {
     }
   }, [result]);
 
+  // 叙事文字打完后，滚动到继续按钮
+  useEffect(() => {
+    if (result && onContinue && continueRef.current) {
+      const timer = setTimeout(() => {
+        continueRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [result, onContinue]);
+
   const lines = result
     ? (result.success ? scene.success : scene.failure)
     : null;
 
   return (
     <div className="flex flex-col gap-4">
-      {/* 场景描述（始终显示） */}
-      <div className="panel p-6 border-l-2 border-brass/30">
+      {/* 场景描述 */}
+      <div className="panel p-6 border-l-2 border-emerald-900/40">
         <div className="flex items-center gap-3 mb-4">
-          <span className="text-brass/50 text-lg">◈</span>
+          <span className="text-emerald-700/60 text-lg">◈</span>
           <div>
             <p className="text-xs tracking-widest uppercase text-ghost/50 font-mono">{scene.atmosphere}</p>
             <p className="text-sm text-pale/70">{scene.location} — {scene.year}</p>
           </div>
         </div>
-        <p className="text-pale/90 leading-loose text-sm">{scene.description}</p>
+        <p className="text-pale/90 leading-loose text-sm">
+          <TypewriterText
+            key={scene.id + '-desc'}
+            text={scene.description}
+            speed={22}
+            glitch={glitch}
+          />
+        </p>
       </div>
 
       {/* 判定结果叙述 */}
@@ -39,47 +52,40 @@ export default function NarrativeBox({ scene, result }) {
           ref={boxRef}
           className={[
             'panel p-6 border-l-4 animate-fade-slide',
-            result.success
-              ? 'border-yellow-600/50'
-              : 'border-red-800/60',
+            result.success ? 'border-yellow-600/50' : 'border-red-800/60',
           ].join(' ')}
         >
-          {/* 结果标题 */}
           <div className="flex items-center gap-2 mb-4">
             {result.success ? (
               <>
                 <span className="text-yellow-500 text-lg">✦</span>
-                <span className="text-xs tracking-widest uppercase text-yellow-600/80 font-mono font-bold">
-                  命运眷顾了你
-                </span>
+                <span className="text-xs tracking-widest uppercase text-yellow-600/80 font-mono font-bold">命运眷顾了你</span>
               </>
             ) : (
               <>
                 <span className="text-red-600 text-lg">✘</span>
-                <span className="text-xs tracking-widest uppercase text-red-700/80 font-mono font-bold">
-                  黑暗将你吞噬
-                </span>
+                <span className="text-xs tracking-widest uppercase text-red-700/80 font-mono font-bold">黑暗将你吞噬</span>
               </>
             )}
           </div>
 
-          {/* 段落文字逐行渲染 */}
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-4">
             {lines.map((line, i) => (
               <p
                 key={i}
                 className="text-pale/85 leading-loose text-sm"
-                style={{
-                  animationDelay: `${i * 0.12}s`,
-                  animation: 'fadeSlideIn 0.5s ease-out both',
-                }}
+                style={{ animationDelay: `${i * 0.1}s`, animation: 'fadeSlideIn 0.4s ease-out both' }}
               >
-                {line}
+                <TypewriterText
+                  key={scene.id + '-line-' + i + '-' + (result.success ? 's' : 'f')}
+                  text={line}
+                  speed={18}
+                  glitch={glitch}
+                />
               </p>
             ))}
           </div>
 
-          {/* 燃烧理智的额外注释 */}
           {!result.success && result.burnCount > 0 && (
             <div className="mt-4 pt-4 border-t border-red-900/30">
               <p className="text-xs text-red-400/60 italic">
@@ -94,17 +100,27 @@ export default function NarrativeBox({ scene, result }) {
               </p>
             </div>
           )}
+
+          {/* 继续按钮内嵌在叙事框底部 */}
+          {onContinue && (
+            <div ref={continueRef} className="mt-6 flex justify-center">
+              <button
+                className="btn-roll px-10"
+                onClick={onContinue}
+              >
+                {result.success ? '循线追查 →' : '硬着头皮继续 →'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
       {/* 待投骰提示 */}
       {!result && (
-        <div className="panel p-4 border-dashed border-brass/10 flex items-center justify-center gap-3">
-          <span className="text-brass/30 text-xl animate-pulse">⬡</span>
-          <p className="text-xs tracking-widest uppercase text-ghost/30 font-mono">
-            投掷骰子以揭示命运
-          </p>
-          <span className="text-brass/30 text-xl animate-pulse">⬡</span>
+        <div className="panel p-4 border-dashed border-emerald-900/20 flex items-center justify-center gap-3">
+          <span className="text-emerald-900/50 text-xl animate-pulse">⬡</span>
+          <p className="text-xs tracking-widest uppercase text-ghost/30 font-mono">投掷骰子以揭示命运</p>
+          <span className="text-emerald-900/50 text-xl animate-pulse">⬡</span>
         </div>
       )}
     </div>

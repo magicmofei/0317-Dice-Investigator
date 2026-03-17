@@ -2,10 +2,12 @@
  * StatPanel — 玩家状态面板（生命值、理智值、线索、场景进度）
  */
 export default function StatPanel({ gameState, sceneTitle }) {
-  const { hp, san, clues, isAlive, isSane } = gameState;
+  const { hp, san, sanCap = 100, clues, isAlive, isSane, discovery = 0, humidity = 0 } = gameState;
 
-  const hpPct  = (hp  / 10)  * 100;
-  const sanPct = (san / 100) * 100;
+  const hpPct        = (hp  / 10)  * 100;
+  const sanPct       = (san / sanCap) * 100;
+  const discoveryPct = discovery;
+  const humidityPct  = humidity;
 
   return (
     <div className="flex flex-col gap-3">
@@ -83,6 +85,57 @@ export default function StatPanel({ gameState, sceneTitle }) {
         {isSane && san <= 20 && (
           <p className="text-xs text-red-400/70 mt-2 italic">理智边缘…现实开始扭曲</p>
         )}
+      </div>
+
+      {/* 调查度 */}
+      <div className="panel p-4">
+        <div className="flex justify-between items-baseline mb-2">
+          <span className="text-xs tracking-widest uppercase text-ghost/60 font-mono">调查度</span>
+          <span className={`text-lg font-black font-mono ${
+            discovery >= 80 ? 'text-yellow-400' : 'text-pale'
+          }`}>
+            {discovery} <span className="text-xs text-ghost/40">/ 100</span>
+          </span>
+        </div>
+        <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <div
+            className="h-full rounded-full transition-all duration-700"
+            style={{
+              width: `${discoveryPct}%`,
+              background: discovery >= 80
+                ? 'linear-gradient(90deg, #854d0e, #eab308)'
+                : 'linear-gradient(90deg, #1e3a5f, #60a5fa)',
+              boxShadow: discovery >= 80 ? '0 0 8px rgba(234,179,8,0.5)' : 'none',
+            }}
+          />
+        </div>
+        {discovery >= 80 && <p className="text-xs text-yellow-500/70 mt-1 tracking-wide">真相已近在咫尺</p>}
+      </div>
+
+      {/* 潮湿感 */}
+      <div className="panel p-4">
+        <div className="flex justify-between items-baseline mb-2">
+          <span className="text-xs tracking-widest uppercase text-ghost/60 font-mono">潮湿感</span>
+          <span className={`text-lg font-black font-mono ${
+            humidity >= 70 ? 'text-blue-400' : humidity >= 40 ? 'text-blue-600' : 'text-pale'
+          }`}>
+            {humidity} <span className="text-xs text-ghost/40">/ 100</span>
+          </span>
+        </div>
+        <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <div
+            className="h-full rounded-full transition-all duration-700"
+            style={{
+              width: `${humidityPct}%`,
+              background: humidity >= 70
+                ? 'linear-gradient(90deg, #1e3a8a, #3b82f6)'
+                : 'linear-gradient(90deg, #1e3a5f, #93c5fd)',
+              boxShadow: humidity >= 70 ? '0 0 8px rgba(59,130,246,0.5)' : 'none',
+            }}
+          />
+        </div>
+        {humidity >= 40 && humidity < 70 && <p className="text-xs text-blue-400/60 mt-1 italic">骰子开始打滑…</p>}
+        {humidity >= 70 && <p className="text-xs text-blue-300/70 mt-1 italic">幻象已经渗入视野</p>}
       </div>
 
       {/* 线索列表 */}
