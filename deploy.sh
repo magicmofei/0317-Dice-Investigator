@@ -28,29 +28,16 @@ git add .
 # 避免如果没有文件更改时 commit 报错，加个判断
 git commit -m "$USER_MSG" || echo "🧊 没有检测到文件更改，跳过提交。"
 
+
 # 4. GitHub 远程同步
+echo -e "${BLUE}🔄 正在同步代码至 GitHub...${NC}"
 git branch -M main
-
-# 检查远程 origin 是否存在，不存在则添加
-REMOTE_URL=$(git remote get-url origin 2>/dev/null)
-
-if [ -z "$REMOTE_URL" ]; then
-    if ! gh repo view "$REPO_NAME" >/dev/null 2>&1; then
-        echo -e "${BLUE}🚀 正在 GitHub 创建新仓库: $REPO_NAME ...${NC}"
-        gh repo create "$REPO_NAME" --public --source=. --remote=origin --push
-    else
-        # 仓库已存在但本地没关联
-        echo -e "${BLUE}🔗 关联已存在的远程仓库...${NC}"
-        gh repo set-default "$REPO_NAME"
-        git remote add origin "https://github.com/你的用户名/$REPO_NAME.git"
-        git push -u origin main
-    fi
+# 强制指定推送到 origin main，并捕获错误
+if git push -u origin main; then
+    echo -e "${GREEN}🚀 GitHub 同步成功！${NC}"
 else
-    echo -e "${BLUE}🔄 正在同步代码至 GitHub...${NC}"
-    git push -u origin main
+    echo -e "${RED}❌ 推送失败，可能是网络问题。请尝试手动执行: git push -u origin main${NC}"
 fi
-fi
-
 # 5. Vercel 发布
 echo -e "${BLUE}🚀 正在通过 Vercel 极速发布预览...${NC}"
 vercel --prod --yes
