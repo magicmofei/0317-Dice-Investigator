@@ -346,37 +346,80 @@ export default function App() {
           </div>
         </div>
       </header>
-      <main className="relative max-w-6xl mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6">
-          <aside className="flex flex-col gap-4"><StatPanel gameState={panelState} sceneTitle={chapterMeta.title} /></aside>
-          <div className="flex flex-col gap-6">
-            <div className="panel p-6"><div className="flex items-start gap-4">
-              <div className="text-4xl leading-none mt-1" style={{ fontFamily:"'Playfair Display',serif", color:isChapter2?'rgba(29,78,216,0.4)':'rgba(6,78,59,0.4)' }}>§</div>
-              <div className="flex-1"><h2 className="text-xl font-black text-pale tracking-wide" style={{ fontFamily:"'Playfair Display',serif" }}>{chapterMeta.title} · 第 {localIndex} 关</h2>
-              <p className="text-xs text-ghost/40 font-mono mt-1 tracking-widest">{chapterMeta.location} · {chapterMeta.year}</p></div>
-            </div></div>
+      <main className="relative max-w-7xl mx-auto px-4 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[260px_320px_1fr] gap-4">
+
+          {/* ── 左栏：状态面板 ── */}
+          <aside className="flex flex-col gap-3">
+            <StatPanel gameState={panelState} sceneTitle={chapterMeta.title} />
+          </aside>
+
+          {/* ── 中栏：场景图 ── */}
+          <div className="flex flex-col gap-3">
+            <div className="scene-frame flex flex-col">
+              {/* 场景图占位区 */}
+              <div className="scene-image-area flex items-center justify-center">
+                <div className="flex flex-col items-center gap-3 text-center">
+                  <span className="text-5xl opacity-20" style={{color:accentColor}}>⬡</span>
+                  <p className="text-xs font-mono text-ghost/20 tracking-widest uppercase">Scene Illustration</p>
+                  <p className="text-xs font-mono text-ghost/15 tracking-widest">{chapterMeta.location}</p>
+                </div>
+              </div>
+              {/* 场景元数据 */}
+              <div className="scene-meta px-4 py-3 border-t" style={{borderColor:'rgba(255,255,255,0.05)'}}>
+                <p className="text-xs font-mono tracking-widest uppercase mb-0.5" style={{color:accentColor}}>{chapterMeta.atmosphere}</p>
+                <p className="text-xs text-ghost/40 font-mono">{chapterMeta.location} · {chapterMeta.year}</p>
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="flex-1 h-px" style={{background:`linear-gradient(90deg, ${accentColor}44, transparent)`}} />
+                  <span className="text-xs font-mono text-ghost/30">{localIndex} / {isChapter2 ? CHAPTER2_SCENE_ORDER.length : CHAPTER1_SCENE_ORDER.length}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 骰子区 */}
+            {!isGameOver&&!resolved&&!pendingResult&&(
+              <div className="panel p-5">
+                <DiceRoller skillValue={skillValue} difficulty={difficulty} onResult={handleResult} onBurnSanity={handleBurnSanity} sanity={san} disabled={isGameOver||!!pendingResult}/>
+              </div>
+            )}
+          </div>
+
+          {/* ── 右栏：剧情 + 选项 ── */}
+          <div className="flex flex-col gap-4">
+            {/* 章节标题条 */}
+            <div className="flex items-center gap-3 px-4 py-2 border-b" style={{borderColor:'rgba(255,255,255,0.05)'}}>
+              <span className="text-xl font-black" style={{color:`${accentColor}66`, fontFamily:"'Playfair Display',serif"}}>§</span>
+              <div>
+                <h2 className="text-sm font-black text-pale/80 tracking-wide" style={{fontFamily:"'Playfair Display',serif"}}>{chapterMeta.title} · 第 {localIndex} 关</h2>
+              </div>
+            </div>
+
             <NarrativeBox scene={scene} result={rollResult&&resolved?rollResult:null} glitch={glitchSevere}
               instant={devMode}
               onContinue={resolved&&!isLastNode&&!isGameOver?handleNextNode:null} />
+
+            {/* 选项选择器 */}
             {!resolved&&currentNode?.options?.length>1&&(
-              <div className="panel p-4 flex flex-col gap-2">
-                <p className="text-xs tracking-widest uppercase text-ghost/50 font-mono mb-1">选择行动方式</p>
+              <div className="flex flex-col gap-2">
+                <p className="text-xs tracking-widest uppercase text-ghost/40 font-mono px-1">选择行动</p>
                 {currentNode.options.map((opt,i)=>(
                   <button key={i} onClick={()=>setChoiceIdx(i)}
-                    className={['text-left px-4 py-3 text-sm border transition-all duration-200',
-                      choiceIdx===i?'border-brass/60 bg-brass/10 text-pale':'border-ghost/10 text-ghost/50 hover:border-ghost/30 hover:text-ghost/70'].join(' ')}>
-                    <span className="font-mono text-xs mr-2" style={{color:accentColor}}>{i+1}.</span>
-                    {opt.label} <span className="ml-2 text-xs text-ghost/40 font-mono">DC {opt.dc}</span>
-                    {opt.investigationValue&&<span className="ml-1 text-xs" style={{color:'rgba(96,165,250,0.5)'}}>+{opt.investigationValue}%调查度</span>}
+                    className={['text-left px-4 py-3 text-sm border transition-all duration-200 option-btn',
+                      choiceIdx===i?'option-btn--active':''].join(' ')}
+                    style={choiceIdx===i?{borderColor:`${accentColor}66`,background:`${accentColor}0d`,color:'#e8dcc8'}:{}}  
+                  >
+                    <span className="font-mono text-xs mr-2 opacity-60" style={{color:accentColor}}>{i+1}.</span>
+                    <span>{opt.label}</span>
+                    {opt.investigationValue&&<span className="ml-2 text-xs opacity-50" style={{color:'#60a5fa'}}>+{opt.investigationValue}</span>}
                   </button>
                 ))}
               </div>
             )}
-            {!isGameOver&&!resolved&&!pendingResult&&(<div className="panel p-8"><DiceRoller skillValue={skillValue} difficulty={difficulty} onResult={handleResult} onBurnSanity={handleBurnSanity} sanity={san} disabled={isGameOver||!!pendingResult}/></div>)}
+
             {resolved&&isLastNode&&!isGameOver&&(
               <div className="panel p-6 border text-center animate-fade-slide" style={{borderColor:accentBorder}}>
                 <p className="text-lg font-bold tracking-widest" style={{fontFamily:"'Playfair Display',serif",color:accentColor}}>✦ 调查完结 ✦</p>
-                <p className="text-pale/50 text-sm mt-2">线索 {gameState.clues.length} 条 · 调查度 {inv}% · SAN {san} / 100</p>
+                <p className="text-pale/50 text-sm mt-2">线索 {gameState.clues.length} 条 · 调查度 {inv}% · SAN {san}</p>
                 <button className="btn-roll mt-4 w-48" onClick={()=>setEnding(determineEnding(gameState))}>查看结局</button>
               </div>
             )}
