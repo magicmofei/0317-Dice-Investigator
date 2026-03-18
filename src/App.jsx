@@ -173,11 +173,11 @@ export default function App() {
   const handleResult = useCallback((result) => {
     const choice = currentChoiceRef.current;
     if (!choice || resolvedRef.current) return;
-    resolvedRef.current = true;
+    resolvedRef.current = true; // 防止重复触发
     if (result.success) {
       finalizeResult(result, choice);
     } else {
-      // 失败 → 博弈环节
+      // 失败 → 博弈环节（不立即结算，等待玩家选择）
       setPendingResult({ result, choice });
     }
   }, [finalizeResult]);
@@ -280,7 +280,7 @@ export default function App() {
                 ))}
               </div>
             )}
-            {!isGameOver&&!resolved&&(<div className="panel p-8"><DiceRoller dc={scene.dc} onResult={handleResult} onBurnSanity={handleBurnSanity} sanity={san} disabled={isGameOver}/></div>)}
+            {!isGameOver&&!resolved&&!pendingResult&&(<div className="panel p-8"><DiceRoller dc={scene.dc} onResult={handleResult} onBurnSanity={handleBurnSanity} sanity={san} disabled={isGameOver||!!pendingResult}/></div>)}
             {resolved&&isLastNode&&!isGameOver&&(
               <div className="panel p-6 border text-center animate-fade-slide" style={{borderColor:accentBorder}}>
                 <p className="text-lg font-bold tracking-widest" style={{fontFamily:"'Playfair Display',serif",color:accentColor}}>✦ 调查完结 ✦</p>
