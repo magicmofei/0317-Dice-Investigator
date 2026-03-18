@@ -1,17 +1,30 @@
 import { useState, useCallback } from 'react';
 
-const INITIAL_STATE = {
-  hp: 10,
-  san: 70,
-  clues: [],
-  isAlive: true,
-  isSane: true,
-  investigationProgress: 0, // 0-100 调查度
-  ending: null,             // 最终结局 id
-};
+const DEFAULT_ATTRS = { STR: 40, DEX: 40, POW: 40, EDU: 40, CHA: 40 };
 
-export function useGameState() {
-  const [gameState, setGameState] = useState(INITIAL_STATE);
+export function buildInitialState(attrs = DEFAULT_ATTRS) {
+  const hp  = Math.floor((attrs.STR + attrs.DEX) / 10) + 5;
+  const san = attrs.POW;
+  return {
+    attributes: { ...attrs },
+    hp,
+    maxHp: hp,
+    san,
+    maxSan: san,
+    clues: [],
+    isAlive: true,
+    isSane: true,
+    investigationProgress: 0,
+    ending: null,
+  };
+}
+
+const INITIAL_STATE = buildInitialState();
+
+export function useGameState(initAttrs) {
+  const [gameState, setGameState] = useState(
+    () => initAttrs ? buildInitialState(initAttrs) : INITIAL_STATE
+  );
 
   const burnSanity = useCallback((amount = 5) => {
     setGameState((prev) => {
@@ -45,8 +58,9 @@ export function useGameState() {
     setGameState((prev) => ({ ...prev, ending: endingId }));
   }, []);
 
-  const restore = useCallback(() => {
-    setGameState(INITIAL_STATE);
+  // 用新属性重置游戏状态
+  const restore = useCallback((newAttrs) => {
+    setGameState(newAttrs ? buildInitialState(newAttrs) : INITIAL_STATE);
   }, []);
 
   return {

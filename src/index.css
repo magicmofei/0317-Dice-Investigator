@@ -223,3 +223,48 @@
   background: rgba(30, 30, 255, 0.15);
   animation: defyFateRgbB 0.5s ease-out forwards;
 }
+
+/* ── 调查员生成界面：羊皮纸风格 Range Slider ── */
+.attr-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 2px;
+  background: transparent;
+  cursor: pointer;
+  margin: 6px 0 2px;
+  outline: none;
+}
+.attr-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--thumb-color, #b5921a);
+  border: 2px solid rgba(0,0,0,0.6);
+  transform: rotate(45deg);
+  box-shadow: 0 0 8px var(--thumb-color, rgba(181,146,26,0.6));
+  transition: box-shadow 0.2s, transform 0.15s;
+  cursor: pointer;
+}
+.attr-slider::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 16px var(--thumb-color, rgba(181,146,26,0.9));
+  transform: rotate(45deg) scale(1.2);
+}
+.attr-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: var(--thumb-color, #b5921a);
+  border: 2px solid rgba(0,0,0,0.6);
+  box-shadow: 0 0 8px var(--thumb-color, rgba(181,146,26,0.6));
+  cursor: pointer;
+  border-radius: 0;
+}
+.attr-slider::-webkit-slider-runnable-track {
+  height: 2px;
+  background: rgba(255,255,255,0.08);
+}
+.attr-slider::-moz-range-track {
+  height: 2px;
+  background: rgba(255,255,255,0.08);
+}

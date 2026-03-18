@@ -7,6 +7,7 @@ import { VERSION, CHANGELOG } from './version.js';
 import DiceRoller from './components/DiceRoller.jsx';
 import NarrativeBox from './components/NarrativeBox.jsx';
 import StatPanel from './components/StatPanel.jsx';
+import CharacterCreation from './components/CharacterCreation.jsx';
 
 const ALL_NODES = [...CHAPTER1_LIGHTHOUSE, ...CHAPTER2_RETURN];
 const ALL_ORDER = [...CHAPTER1_SCENE_ORDER, ...CHAPTER2_SCENE_ORDER];
@@ -122,6 +123,12 @@ function getNextNodeId(currentId) {
 export default function App() {
   const { gameState, burnSanity, takeDamage, restore, addClue, addInvestigation } = useGameState();
   const { muted, toggleMute } = useAudio(gameState.san);
+  const [phase, setPhase] = useState('creation'); // 'creation' | 'game'
+
+  const handleStartGame = useCallback(({ attrs, derived }) => {
+    restore(attrs);
+    setPhase('game');
+  }, [restore]);
   const [nodeId, setNodeId]           = useState(ALL_ORDER[0]);
   const [choiceIdx, setChoiceIdx]     = useState(0);
   const [rollResult, setRollResult]   = useState(null);
@@ -238,10 +245,15 @@ export default function App() {
     resolvedRef.current = false; restore();
     setNodeId(ALL_ORDER[0]); setChoiceIdx(0); setRollResult(null);
     setResolved(false); setBridge(false); setPendingResult(null); setEnding(null);
+    setPhase('creation');
   }, [restore]);
 
   if (!scene) return null;
   const panelState = { hp: gameState.hp, san, discovery: inv, clues: gameState.clues, isAlive: gameState.isAlive, isSane: gameState.isSane };
+
+  if (phase === 'creation') {
+    return <CharacterCreation onStart={handleStartGame} />;
+  }
 
   return (
     <div className={`min-h-screen text-parchment${defyFlash ? ' defy-fate-flash' : ''}`}
