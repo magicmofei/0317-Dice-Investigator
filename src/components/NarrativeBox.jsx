@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { TypewriterText } from '../hooks/useGlitch.jsx';
 
-export default function NarrativeBox({ scene, result, glitch = false, onContinue = null, isLastNode = false }) {
+export default function NarrativeBox({ scene, result, glitch = false, onContinue = null, isLastNode = false, instant = false }) {
   const boxRef = useRef(null);
   const continueRef = useRef(null);
 
@@ -42,6 +42,7 @@ export default function NarrativeBox({ scene, result, glitch = false, onContinue
             text={scene.description}
             speed={22}
             glitch={glitch}
+            instant={instant}
           />
         </p>
       </div>
@@ -81,6 +82,7 @@ export default function NarrativeBox({ scene, result, glitch = false, onContinue
                   text={line}
                   speed={18}
                   glitch={glitch}
+                  instant={instant}
                 />
               </p>
             ))}

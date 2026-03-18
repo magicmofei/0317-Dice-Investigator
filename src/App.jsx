@@ -10,6 +10,7 @@ const ALL_NODES = [...CHAPTER1_LIGHTHOUSE, ...CHAPTER2_RETURN];
 const ALL_ORDER = [...CHAPTER1_SCENE_ORDER, ...CHAPTER2_SCENE_ORDER];
 const NODE_MAP  = Object.fromEntries(ALL_NODES.map((n) => [n.id, n]));
 const CH1_LAST  = CHAPTER1_SCENE_ORDER[CHAPTER1_SCENE_ORDER.length - 1];
+const VERSION   = 'v0.3.0';
 
 // ── 10 种结局判定矩阵 ──────────────────────────────────────────────
 const ENDINGS = [
@@ -126,6 +127,8 @@ export default function App() {
   const [bridge, setBridge]           = useState(false);
   const [pendingResult, setPendingResult] = useState(null); // 博弈缓冲区
   const [ending, setEnding]           = useState(null);     // 触发的结局
+  const [devMode, setDevMode]         = useState(false);    // 开发者模式
+  const [defyFlash, setDefyFlash]     = useState(false);    // 逆天改命闪屏
 
   const currentNode   = NODE_MAP[nodeId];
   const currentChoice = currentNode?.options?.[choiceIdx] ?? currentNode?.options?.[0];
@@ -187,6 +190,9 @@ export default function App() {
     if (!pendingResult) return;
     const { result, choice } = pendingResult;
     burnSanity(10);
+    // 触发 RGB 色散闪屏
+    setDefyFlash(true);
+    setTimeout(() => setDefyFlash(false), 600);
     const boosted = { ...result, total: result.total + 3 };
     boosted.success = boosted.total >= (scene?.dc ?? 10);
     setPendingResult(null);
@@ -231,8 +237,12 @@ export default function App() {
   const panelState = { hp: gameState.hp, san, inv, clues: gameState.clues, isAlive: gameState.isAlive, isSane: gameState.isSane };
 
   return (
-    <div className={`min-h-screen text-parchment ${glitchClass}`}
-      style={{ fontFamily: "'Noto Serif SC', 'Playfair Display', Georgia, serif" }}>
+    <div className={`min-h-screen text-parchment${defyFlash ? ' defy-fate-flash' : ''}`}
+      style={{ fontFamily: "'Noto Serif SC', 'Playfair Display', Georgia, serif", willChange: 'transform' }}>
+      {/* Glitch overlay — 独立层，不触发整页 repaint */}
+      {glitchClass && (
+        <div className={`fixed inset-0 pointer-events-none z-10 ${glitchClass}`} />
+      )}
       {glitchSevere && (<div className="fixed top-0 left-0 right-0 z-40 text-center py-1 text-xs font-mono tracking-widest uppercase" style={{ background: 'rgba(80,0,0,0.7)', color: '#ff4444', animation: 'flickerText 1.5s infinite' }}>██ 理智崩溃临界 · SAN {san} / 100 ██</div>)}
       {glitchMild && !glitchSevere && (<div className="fixed top-0 left-0 right-0 z-40 text-center py-0.5 text-xs font-mono tracking-widest" style={{ background: 'rgba(30,10,0,0.6)', color: '#ff8844', opacity: 0.8 }}>理智动摇 · SAN {san} / 100</div>)}
       <div className="fixed inset-0 pointer-events-none" style={{ backgroundImage: isChapter2 ? 'radial-gradient(ellipse at 50% 100%, rgba(0,20,50,0.5) 0%, transparent 60%)' : 'radial-gradient(ellipse at 10% 90%, rgba(10,40,15,0.08) 0%, transparent 50%)' }} />
@@ -251,6 +261,17 @@ export default function App() {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs font-mono px-2 py-0.5 border" style={{ color:accentColor, borderColor:accentBorder }}>{isChapter2?'第二章':'第一章'} · {nodeIndex} / {ALL_ORDER.length}</span>
+            <span className="text-xs font-mono text-ghost/25 border border-ghost/10 px-2 py-0.5">{VERSION}</span>
+            <button
+              onClick={() => setDevMode(v => !v)}
+              className="text-xs tracking-widest uppercase font-mono border px-3 py-1.5 transition-all duration-200"
+              style={devMode
+                ? { borderColor:'rgba(96,165,250,0.5)', color:'#60a5fa', background:'rgba(96,165,250,0.08)' }
+                : { borderColor:'rgba(255,255,255,0.1)', color:'rgba(255,255,255,0.25)' }}
+              title="开发者模式：关闭打字机效果"
+            >
+              {devMode ? '⚡ DEV ON' : 'DEV'}
+            </button>
             <button onClick={handleRestart} className="text-xs text-ghost/30 hover:text-brass/60 transition-colors tracking-widest uppercase font-mono border border-ghost/10 hover:border-brass/30 px-3 py-1.5">重新开始</button>
           </div>
         </div>
@@ -265,6 +286,7 @@ export default function App() {
               <p className="text-xs text-ghost/40 font-mono mt-1 tracking-widest">{chapterMeta.location} · {chapterMeta.year}</p></div>
             </div></div>
             <NarrativeBox scene={scene} result={rollResult&&resolved?rollResult:null} glitch={glitchSevere}
+              instant={devMode}
               onContinue={resolved&&!isLastNode&&!isGameOver?handleNextNode:null} />
             {!resolved&&currentNode?.options?.length>1&&(
               <div className="panel p-4 flex flex-col gap-2">

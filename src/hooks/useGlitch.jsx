@@ -54,13 +54,12 @@ export function useGlitchText(text, active) {
  *   glitch    — bool, whether to corrupt text (san < 20)
  *   className — extra classes
  */
-export function TypewriterText({ text, speed = 28, onDone, glitch = false, className = '' }) {
+export function TypewriterText({ text, speed = 28, onDone, glitch = false, className = '', instant = false }) {
   const [displayed, setDisplayed] = useState('');
   const [done, setDone] = useState(false);
   const indexRef = useRef(0);
   const timerRef = useRef(null);
 
-  // Reset whenever text changes
   useEffect(() => {
     setDisplayed('');
     setDone(false);
@@ -68,6 +67,14 @@ export function TypewriterText({ text, speed = 28, onDone, glitch = false, class
     if (timerRef.current) clearInterval(timerRef.current);
 
     if (!text) return;
+
+    // 开发者模式：一次性输出
+    if (instant) {
+      setDisplayed(text);
+      setDone(true);
+      onDone?.();
+      return;
+    }
 
     timerRef.current = setInterval(() => {
       indexRef.current += 1;
@@ -81,15 +88,14 @@ export function TypewriterText({ text, speed = 28, onDone, glitch = false, class
     }, speed);
 
     return () => clearInterval(timerRef.current);
-  }, [text, speed]);
+  }, [text, speed, instant]);
 
-  // After typing is done, optionally corrupt
   const glitchedDisplay = useGlitchText(displayed, glitch && done);
 
   return (
     <span className={className}>
       {glitch && done ? glitchedDisplay : displayed}
-      {!done && (
+      {!done && !instant && (
         <span
           className="inline-block w-0.5 h-[1em] bg-current ml-0.5 align-middle"
           style={{ animation: 'blink 0.7s step-end infinite' }}
