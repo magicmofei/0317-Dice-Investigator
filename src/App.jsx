@@ -109,7 +109,8 @@ function nodeToScene(node, choiceIdx) {
     year: meta.year,
     atmosphere: meta.atmosphere,
     description: node.text,
-    dc: choice?.dc ?? 10,
+    attribute: choice?.attribute ?? 'STR', // CoC 属性名
+    difficulty: choice?.difficulty ?? 1,   // 1=常规 2=困难 5=极难
     success: choice ? [choice.onSuccess] : ['调查继续。'],
     failure: choice ? [choice.onFailure] : ['调查受阻。'],
   };
@@ -159,14 +160,21 @@ export default function App() {
   const accentColor  = isChapter2 ? '#60a5fa' : '#b5921a';
   const accentBorder = isChapter2 ? 'rgba(96,165,250,0.3)' : 'rgba(181,146,26,0.3)';
 
+  // CoC 属性映射：scene.attribute 字符串 → 玩家属性值
+  const ATTR_KEY_MAP = { '体魄': 'STR', '敏锐': 'DEX', '意志': 'POW', '学识': 'EDU', '魅力': 'CHA',
+                         'STR': 'STR', 'DEX': 'DEX', 'POW': 'POW', 'EDU': 'EDU', 'CHA': 'CHA' };
+  const attrs = gameState.attributes || { STR:50, DEX:50, POW:50, EDU:50, CHA:50 };
+  const skillValue = scene ? (attrs[ATTR_KEY_MAP[scene.attribute] || 'STR'] ?? 50) : 50;
+  const difficulty = scene?.difficulty ?? 1;
+
   const resolvedRef      = useRef(false);
   const currentChoiceRef = useRef(currentChoice);
   currentChoiceRef.current = currentChoice;
 
   // 最终结算逻辑
   const finalizeResult = useCallback((result, choice) => {
-    const isCriticalSuccess = result.roll === 20;
-    const isCriticalFail    = result.roll === 1;
+    const isCriticalSuccess = result.successLevel === 'critical';
+    const isCriticalFail    = result.successLevel === 'fumble';
     if (!result.success) {
       const txt = choice.onFailure || '';
       if (txt.includes('体力损失')) takeDamage(1);
@@ -178,7 +186,7 @@ export default function App() {
       const clueMatch = (choice.onSuccess || '').match(/获得【([^】]+)】/);
       if (clueMatch) addClue(clueMatch[1]);
       if (choice.clue) addClue(choice.clue);
-      const baseInv = choice.investigationValue || 0;
+      const baseInv  = choice.investigationValue || 0;
       const bonusInv = isCriticalSuccess ? 10 : 0;
       if (baseInv + bonusInv > 0) addInvestigation(baseInv + bonusInv);
     }
@@ -199,19 +207,23 @@ export default function App() {
     }
   }, [finalizeResult]);
 
-  // 逆天改命：燃烧 SAN +3 加成
+  // 逆天改命：燃烧 SAN，骰点 -10（CoC 百分骰越低越好）
   const handleDefyFate = useCallback(() => {
     if (!pendingResult) return;
     const { result, choice } = pendingResult;
     burnSanity(10);
-    // 触发 RGB 色散闪屏
     setDefyFlash(true);
     setTimeout(() => setDefyFlash(false), 600);
-    const boosted = { ...result, total: result.total + 3 };
-    boosted.success = boosted.total >= (scene?.dc ?? 10);
+    // 百分骰：降低点数 = 更容易成功
+    const boostedTotal = Math.max(1, result.total - 10);
+    const threshold = difficulty === 5 ? Math.floor(skillValue/5) : difficulty === 2 ? Math.floor(skillValue/2) : skillValue;
+    const success = boostedTotal <= threshold;
+    const successLevel = boostedTotal === 1 ? 'critical' : success ? (boostedTotal <= Math.floor(skillValue/5) ? 'extreme' : boostedTotal <= Math.floor(skillValue/2) ? 'hard' : 'success') : 'failure';
+    const boosted = { ...result, total: boostedTotal, success, successLevel,
+      isCriticalSuccess: successLevel === 'critical', isCriticalFail: false };
     setPendingResult(null);
     finalizeResult(boosted, choice);
-  }, [pendingResult, burnSanity, finalizeResult, scene]);
+  }, [pendingResult, burnSanity, finalizeResult, skillValue, difficulty]);
 
   // 接受命运
   const handleAcceptFate = useCallback(() => {
@@ -299,9 +311,9 @@ export default function App() {
         </div>
       )}
       {ending && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95"><div className="panel p-10 max-w-lg text-center flex flex-col items-center gap-5" style={{ border: '1px solid rgba(255,255,255,0.15)' }}><p className="text-xs font-mono tracking-widest uppercase mb-1" style={{ color: ending.type==='success'?'#60a5fa':ending.type==='failure'?'#f87171':'#c084fc' }}>{ending.type==='success'?'── 成功结局 ──':ending.type==='failure'?'── 失败结局 ──':'── 隐藏结局 ──'}</p><h2 className="text-3xl font-black tracking-widest" style={{ fontFamily:"'Playfair Display',serif", color: ending.type==='success'?'#60a5fa':ending.type==='failure'?'#f87171':'#c084fc' }}>{ending.title}</h2><div className="w-full h-px my-2 bg-white/10" /><p className="text-pale/80 text-sm leading-loose">{ending.desc}</p><div className="w-full h-px my-2 bg-white/10" /><p className="text-ghost/40 text-xs font-mono">SAN {san} / 100 · 调查度 {inv}% · 线索 {gameState.clues.length} 条</p><button className="btn-roll w-full mt-2" onClick={handleRestart}>重新调查</button></div></div>)}
-      {pendingResult && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"><div className="panel p-8 max-w-md text-center flex flex-col items-center gap-4" style={{ border: '1px solid rgba(239,68,68,0.4)' }}><p className="text-xs font-mono tracking-widest uppercase text-red-400">── 骰子调查员特色 ──</p><h3 className="text-xl font-black text-pale" style={{ fontFamily:"'Playfair Display',serif" }}>{pendingResult.result.roll === 1 ? '大失败 · 命运已定' : '命运的裂缝'}</h3><p className="text-pale/70 text-sm leading-relaxed">你掷出了 <span className={`font-bold ${pendingResult.result.roll === 1 ? 'text-red-500' : 'text-red-400'}`}>{pendingResult.result.roll === 1 ? '☠ 1（大失败）' : pendingResult.result.total}</span>，目标难度 <span className="font-bold" style={{color:accentColor}}>{scene?.dc}</span>。{pendingResult.result.roll !== 1 && <span>差距：<span className="text-red-400 font-bold">{(scene?.dc??0)-pendingResult.result.total}</span> 点。</span>}</p>{pendingResult.result.roll === 1 && <p className="text-red-500/70 text-xs italic">大失败——命运不允许任何挣扎，逆天改命已被封印。</p>}<div className="w-full flex flex-col gap-3 mt-2"><button onClick={handleDefyFate} disabled={san<=10 || pendingResult.result.roll === 1}
+      {pendingResult && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"><div className="panel p-8 max-w-md text-center flex flex-col items-center gap-4" style={{ border: '1px solid rgba(239,68,68,0.4)' }}><p className="text-xs font-mono tracking-widest uppercase text-red-400">── 骰子调查员特色 ──</p><h3 className="text-xl font-black text-pale" style={{ fontFamily:"'Playfair Display',serif" }}>{pendingResult.result.successLevel === 'fumble' ? '☠ 大失败 · 命运已定' : '命运的裂缝'}</h3><p className="text-pale/70 text-sm leading-relaxed">你掷出了 <span className={`font-bold ${pendingResult.result.successLevel === 'fumble' ? 'text-red-500' : 'text-red-400'}`}>{String(pendingResult.result.total).padStart(2,'0')}</span>，技能值 <span className="font-bold" style={{color:accentColor}}>{skillValue}</span>（需 ≤{difficulty===5?Math.floor(skillValue/5):difficulty===2?Math.floor(skillValue/2):skillValue}）。{pendingResult.result.successLevel !== 'fumble' && <span>超出 <span className="text-red-400 font-bold">{pendingResult.result.total - (difficulty===5?Math.floor(skillValue/5):difficulty===2?Math.floor(skillValue/2):skillValue)}</span> 点。</span>}</p>{pendingResult.result.successLevel === 'fumble' && <p className="text-red-500/70 text-xs italic">大失败——命运不允许任何挣扎，逆天改命已被封印。</p>}<div className="w-full flex flex-col gap-3 mt-2"><button onClick={handleDefyFate} disabled={san<=10 || pendingResult.result.successLevel === 'fumble'}
                 className="w-full px-4 py-3 text-sm border transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                style={{ borderColor:'rgba(239,68,68,0.5)',color:'#f87171',background:'rgba(239,68,68,0.08)' }}>{pendingResult.result.roll === 1 ? '🔒 逆天改命已封印（大失败）' : '🔥 燃烧理智（-10 SAN）· 骰点 +3 · 逆天改命'}</button><button onClick={handleAcceptFate} className="w-full px-4 py-3 text-sm border transition-all" style={{ borderColor:'rgba(255,255,255,0.1)',color:'rgba(255,255,255,0.4)' }}>接受命运 · 承担失败后果</button></div>{san<=10&&pendingResult.result.roll!==1&&<p className="text-red-400/60 text-xs">理智已不足，无法再燃烧。</p>}</div></div>)}
+                style={{ borderColor:'rgba(239,68,68,0.5)',color:'#f87171',background:'rgba(239,68,68,0.08)' }}>{pendingResult.result.successLevel === 'fumble' ? '🔒 逆天改命已封印（大失败）' : '🔥 燃烧理智（-10 SAN）· 骰点 -10 · 逆天改命'}</button><button onClick={handleAcceptFate} className="w-full px-4 py-3 text-sm border transition-all" style={{ borderColor:'rgba(255,255,255,0.1)',color:'rgba(255,255,255,0.4)' }}>接受命运 · 承担失败后果</button></div>{san<=10&&pendingResult.result.successLevel!=='fumble'&&<p className="text-red-400/60 text-xs">理智已不足，无法再燃烧。</p>}</div></div>)}
       {bridge && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95"><div className="panel p-10 max-w-lg text-center flex flex-col items-center gap-5" style={{ border:'1px solid rgba(96,165,250,0.3)' }}><p className="text-5xl">🌊</p><h2 className="text-2xl font-black tracking-widest" style={{ fontFamily:"'Playfair Display',serif",color:'#60a5fa' }}>✦ 第一章完结 ✦</h2><p className="text-pale/50 text-sm">线索 {gameState.clues.length} 条 · 调查度 {inv}% · SAN {san} / 100</p><div className="w-full h-px bg-blue-900/30" /><p className="text-pale/80 text-sm leading-loose italic">三个月后，你收到了米娅·科斯塔的来信。<br/>她写道：「它又亮了。我在那里。请来。」<br/>你的调查还没有结束。</p><button className="btn-roll w-full" style={{ borderColor:'rgba(96,165,250,0.5)',color:'#60a5fa' }} onClick={handleEnterCh2}>进入第二章：归来的灯光 →</button></div></div>)}
       {isGameOver && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md"><div className="panel p-10 max-w-md text-center flex flex-col items-center gap-6" style={{ border:'1px solid rgba(139,26,26,0.4)' }}><p className="text-6xl">☽</p><h2 className="text-2xl font-black text-red-500 tracking-widest uppercase" style={{ fontFamily:"'Playfair Display',serif" }}>{!gameState.isAlive?'调查员已倒下':'理智已崩溃'}</h2><p className="text-pale/60 text-sm leading-loose">{!gameState.isAlive?'黑暗终结了你的调查。':'你的心智已无法承受。现实与幻觉的边界彻底消融。'}</p><button className="btn-roll w-full" onClick={handleRestart}>重燃蜡烛，重新调查</button></div></div>)}
       <header className="relative border-b border-emerald-900/20 bg-black/50 backdrop-blur-sm" style={{ marginTop: glitchMild||glitchSevere?'1.5rem':0 }}>
@@ -316,21 +328,13 @@ export default function App() {
           <div className="flex items-center gap-3">
             <span className="text-xs font-mono px-2 py-0.5 border" style={{ color:accentColor, borderColor:accentBorder }}>{isChapter2?'第二章':'第一章'} · {nodeIndex} / {ALL_ORDER.length}</span>
             <button
-              onClick={() => setShowChangelog(true)}
-              className="text-xs font-mono border px-2 py-0.5 transition-all duration-200 hover:border-brass/40 hover:text-brass/70"
-              style={{ borderColor:'rgba(255,255,255,0.1)', color:'rgba(255,255,255,0.25)' }}
-              title="点击查看版本更新说明"
-            >{VERSION}</button>
-            <button
               onClick={toggleMute}
               className="text-xs tracking-widest font-mono border px-3 py-1.5 transition-all duration-200"
               style={muted
                 ? { borderColor:'rgba(255,255,255,0.1)', color:'rgba(255,255,255,0.25)' }
                 : { borderColor:'rgba(96,165,250,0.3)', color:'rgba(96,165,250,0.7)' }}
               title={muted ? '取消静音' : '静音'}
-            >
-              {muted ? '🔇' : '🔊'}
-            </button>
+            >{muted ? '🔇' : '🔊'}</button>
             <button
               onClick={() => setDevMode(v => !v)}
               className="text-xs tracking-widest uppercase font-mono border px-3 py-1.5 transition-all duration-200"
@@ -338,10 +342,7 @@ export default function App() {
                 ? { borderColor:'rgba(96,165,250,0.5)', color:'#60a5fa', background:'rgba(96,165,250,0.08)' }
                 : { borderColor:'rgba(255,255,255,0.1)', color:'rgba(255,255,255,0.25)' }}
               title="开发者模式：关闭打字机效果"
-            >
-              {devMode ? '⚡ DEV ON' : 'DEV'}
-            </button>
-            <button onClick={handleRestart} className="text-xs text-ghost/30 hover:text-brass/60 transition-colors tracking-widest uppercase font-mono border border-ghost/10 hover:border-brass/30 px-3 py-1.5">重新开始</button>
+            >{devMode ? '⚡ DEV' : 'DEV'}</button>
           </div>
         </div>
       </header>
@@ -371,7 +372,7 @@ export default function App() {
                 ))}
               </div>
             )}
-            {!isGameOver&&!resolved&&!pendingResult&&(<div className="panel p-8"><DiceRoller dc={scene.dc} onResult={handleResult} onBurnSanity={handleBurnSanity} sanity={san} disabled={isGameOver||!!pendingResult}/></div>)}
+            {!isGameOver&&!resolved&&!pendingResult&&(<div className="panel p-8"><DiceRoller skillValue={skillValue} difficulty={difficulty} onResult={handleResult} onBurnSanity={handleBurnSanity} sanity={san} disabled={isGameOver||!!pendingResult}/></div>)}
             {resolved&&isLastNode&&!isGameOver&&(
               <div className="panel p-6 border text-center animate-fade-slide" style={{borderColor:accentBorder}}>
                 <p className="text-lg font-bold tracking-widest" style={{fontFamily:"'Playfair Display',serif",color:accentColor}}>✦ 调查完结 ✦</p>
@@ -382,8 +383,23 @@ export default function App() {
           </div>
         </div>
       </main>
-      <footer className="relative border-t border-emerald-900/10 mt-16 py-6 text-center">
-        <p className="text-xs text-ghost/20 tracking-widest font-mono uppercase">Ph'nglui mglw'nafh Cthulhu R'lyeh wgah'nagl fhtagn</p>
+      <footer className="relative border-t border-emerald-900/10 mt-8 py-4">
+        <div className="max-w-6xl mx-auto px-6 flex items-center justify-between">
+          <p className="text-xs text-ghost/20 tracking-widest font-mono uppercase hidden sm:block">Ph'nglui mglw'nafh Cthulhu R'lyeh wgah'nagl fhtagn</p>
+          <div className="flex items-center gap-3 ml-auto">
+            <button
+              onClick={() => setShowChangelog(true)}
+              className="text-xs font-mono border px-2 py-1 transition-all hover:border-brass/40 hover:text-brass/60"
+              style={{ borderColor:'rgba(255,255,255,0.08)', color:'rgba(255,255,255,0.2)' }}
+              title="查看版本更新说明"
+            >{VERSION}</button>
+            <button
+              onClick={handleRestart}
+              className="text-xs font-mono border px-3 py-1 transition-all hover:border-red-900/50 hover:text-red-400/60"
+              style={{ borderColor:'rgba(255,255,255,0.08)', color:'rgba(255,255,255,0.2)' }}
+            >重新开始</button>
+          </div>
+        </div>
       </footer>
     </div>
   );

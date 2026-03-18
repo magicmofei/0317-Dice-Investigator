@@ -59,13 +59,30 @@ export default function NarrativeBox({ scene, result, glitch = false, onContinue
           <div className="flex items-center gap-2 mb-4">
             {result.success ? (
               <>
-                <span className="text-yellow-500 text-lg">✦</span>
-                <span className="text-xs tracking-widest uppercase text-yellow-600/80 font-mono font-bold">命运眷顾了你</span>
+                <span className="text-lg" style={{
+                  color: result.isCriticalSuccess ? '#fde047'
+                       : result.successLevel === 'extreme' ? '#c084fc'
+                       : result.successLevel === 'hard' ? '#60a5fa'
+                       : '#4ade80'
+                }}>✦</span>
+                <span className="text-xs tracking-widest uppercase font-mono font-bold" style={{
+                  color: result.isCriticalSuccess ? '#fde047'
+                       : result.successLevel === 'extreme' ? '#c084fc'
+                       : result.successLevel === 'hard' ? '#60a5fa'
+                       : '#4ade80'
+                }}>
+                  {result.isCriticalSuccess ? '大成功 · 命运眷顾'
+                   : result.successLevel === 'extreme' ? '极难成功 · 超凡发挥'
+                   : result.successLevel === 'hard' ? '困难成功 · 勉强突破'
+                   : '常规成功'}
+                </span>
               </>
             ) : (
               <>
-                <span className="text-red-600 text-lg">✘</span>
-                <span className="text-xs tracking-widest uppercase text-red-700/80 font-mono font-bold">黑暗将你吞噬</span>
+                <span className="text-red-600 text-lg">{result.isCriticalFail ? '☠' : '✘'}</span>
+                <span className="text-xs tracking-widest uppercase text-red-700/80 font-mono font-bold">
+                  {result.isCriticalFail ? '大失败 · 黑暗将你吞噬' : '失败 · 黑暗将你吞噬'}
+                </span>
               </>
             )}
           </div>

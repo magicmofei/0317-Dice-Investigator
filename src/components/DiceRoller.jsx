@@ -1,141 +1,204 @@
 import { useState, useRef, useEffect } from 'react';
 
 /**
- * DiceRoller
- * Props:
- *   dc           — Difficulty Class (目标值)
- *   onResult     — 回调 { roll, bonus, total, success }
- *   onBurnSanity — 父组件处理理智扣减（保留接口，不在此处使用）
- *   sanity       — 当前理智值
- *   disabled     — 是否禁用整个组件
+ * CoC DiceRoller — 双 d10 百分骰 (1d100)
  *
- * 注意：燃烧理智的博弈逻辑已移至 App.jsx 的 pendingResult 弹窗。
- * 此组件只负责掷骰动画与结果展示，失败后不再内置燃烧按钮。
+ * Props:
+ *   skillValue    — 技能/属性值（1-100），用于判定成功等级
+ *   difficulty    — 难度等级：1=常规, 2=困难, 5=极难
+ *   onResult      — 回调 { tens, units, total, successLevel }
+ *                   successLevel: 'critical'|'success'|'hard'|'extreme'|'failure'|'fumble'
+ *   disabled      — 是否禁用
  */
-export default function DiceRoller({ dc, onResult, onBurnSanity, sanity, disabled }) {
-  const [roll, setRoll]       = useState(null);
+export default function DiceRoller({ skillValue = 50, difficulty = 1, onResult, disabled }) {
+  const [tens, setTens]     = useState(null); // 十位骰 0-9
+  const [units, setUnits]   = useState(null); // 个位骰 0-9
   const [rolling, setRolling] = useState(false);
   const [result, setResult]   = useState(null);
-  const diceRef     = useRef(null);
+
+  const tensRef   = useRef(null);
+  const unitsRef  = useRef(null);
   const intervalRef = useRef(null);
-  const calledRef   = useRef(false); // 防止同一次投骰多次触发 onResult
+  const calledRef   = useRef(false);
 
-  useEffect(() => {
-    if (disabled && rolling) {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      setRolling(false);
-    }
-  }, [disabled, rolling]);
-
-  // 当外部 disabled 变为 true（resolved 后）重置本地状态
+  // disabled 变为 true 时重置
   useEffect(() => {
     if (disabled) {
-      setRoll(null);
-      setResult(null);
+      setTens(null); setUnits(null); setResult(null);
       calledRef.current = false;
     }
   }, [disabled]);
 
+  // 计算成功等级
+  function calcSuccessLevel(total, sv, diff) {
+    const threshold  = sv;                        // 常规
+    const hard       = Math.floor(sv / 2);         // 困难
+    const extreme    = Math.floor(sv / 5);         // 极难
+    const isFumble   = total >= 96;               // 大失败（96-100）
+    const isCritical = total === 1;               // 大成功（01）
+
+    if (isFumble)   return 'fumble';
+    if (isCritical) return 'critical';
+
+    // 按难度判断所需阈值
+    const needed = diff === 5 ? extreme : diff === 2 ? hard : threshold;
+    if (total > needed) return 'failure';
+    // 成功，再看是否超越更高等级
+    if (total <= extreme) return 'extreme';
+    if (total <= hard)    return 'hard';
+    return 'success';
+  }
+
   function handleRoll() {
     if (rolling || disabled) return;
     setRolling(true);
-    setRoll(null);
-    setResult(null);
+    setTens(null); setUnits(null); setResult(null);
     calledRef.current = false;
 
     const interval = setInterval(() => {
-      if (diceRef.current) {
-        diceRef.current.textContent = Math.ceil(Math.random() * 20);
-      }
+      if (tensRef.current)  tensRef.current.textContent  = Math.floor(Math.random() * 10);
+      if (unitsRef.current) unitsRef.current.textContent = Math.floor(Math.random() * 10);
     }, 55);
     intervalRef.current = interval;
 
     setTimeout(() => {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
-      const finalRoll    = Math.ceil(Math.random() * 20);
-      const finalSuccess = finalRoll >= dc;
-      const isCriticalSuccess = finalRoll === 20;
-      const isCriticalFail    = finalRoll === 1;
-      setRoll(finalRoll);
-      setResult({ total: finalRoll, success: finalSuccess, isCriticalSuccess, isCriticalFail });
+
+      const finalTens  = Math.floor(Math.random() * 10); // 0-9
+      const finalUnits = Math.floor(Math.random() * 10); // 0-9
+      // 双0 = 100
+      const finalTotal = finalTens === 0 && finalUnits === 0 ? 100 : finalTens * 10 + finalUnits;
+      const successLevel = calcSuccessLevel(finalTotal, skillValue, difficulty);
+      const success = successLevel !== 'failure' && successLevel !== 'fumble';
+
+      setTens(finalTens);
+      setUnits(finalUnits);
+      setResult({ tens: finalTens, units: finalUnits, total: finalTotal, successLevel, success });
       setRolling(false);
+
       if (!calledRef.current) {
         calledRef.current = true;
-        onResult({ roll: finalRoll, bonus: 0, total: finalRoll, success: finalSuccess, isCriticalSuccess, isCriticalFail });
+        onResult?.({ tens: finalTens, units: finalUnits, total: finalTotal, successLevel, success,
+          roll: finalTotal, bonus: 0, isCriticalSuccess: successLevel === 'critical',
+          isCriticalFail: successLevel === 'fumble' });
       }
-    }, 700);
+    }, 800);
   }
 
-  const total = roll;
+  // 成功等级配置
+  const levelConfig = {
+    critical: { label: '✦✦ 大成功 (01)',      color: '#fde047', border: 'rgba(253,224,71,0.7)',  bg: 'rgba(253,224,71,0.08)',  glow: '0 0 40px rgba(253,224,71,0.5)' },
+    extreme:  { label: '极难成功',              color: '#c084fc', border: 'rgba(192,132,252,0.6)', bg: 'rgba(192,132,252,0.08)', glow: '0 0 30px rgba(192,132,252,0.4)' },
+    hard:     { label: '困难成功',              color: '#60a5fa', border: 'rgba(96,165,250,0.6)',  bg: 'rgba(96,165,250,0.08)',  glow: '0 0 25px rgba(96,165,250,0.3)' },
+    success:  { label: '常规成功',              color: '#4ade80', border: 'rgba(74,222,128,0.5)',  bg: 'rgba(74,222,128,0.06)',  glow: '0 0 20px rgba(74,222,128,0.25)' },
+    failure:  { label: '失败',                  color: '#f87171', border: 'rgba(248,113,113,0.5)', bg: 'rgba(248,113,113,0.06)', glow: '0 0 20px rgba(248,113,113,0.2)' },
+    fumble:   { label: '☠ 大失败 (96-100)',    color: '#dc2626', border: 'rgba(220,38,38,0.7)',   bg: 'rgba(220,38,38,0.10)',  glow: '0 0 50px rgba(220,38,38,0.5)' },
+  };
+
+  const cfg = result ? levelConfig[result.successLevel] : null;
+  const diffLabel = difficulty === 5 ? '极难' : difficulty === 2 ? '困难' : '常规';
+  const threshold = difficulty === 5 ? Math.floor(skillValue/5) : difficulty === 2 ? Math.floor(skillValue/2) : skillValue;
+
+  // 骰子共用样式
+  function dieClass(glow) {
+    return [
+      'w-24 h-24 flex items-center justify-center select-none cursor-pointer transition-all duration-300',
+      'border-2 bg-gradient-to-br from-[#1a0f08] to-[#0a0908]',
+      rolling ? 'animate-dice-roll' : 'hover:scale-105',
+    ].join(' ');
+  }
 
   return (
-    <div className="flex flex-col items-center gap-6">
+    <div className="flex flex-col items-center gap-5">
+      {/* 难度提示 */}
       <div className="text-center">
-        <span className="text-xs tracking-widest uppercase text-ghost/60 font-mono">难度等级</span>
-        <div className="text-3xl font-black text-brass/80 font-serif mt-0.5">DC {dc}</div>
-      </div>
-
-      <div className="relative flex flex-col items-center">
-        <div
-          className={[
-            'w-32 h-32 flex items-center justify-center select-none cursor-pointer transition-all duration-300',
-            'border-2 bg-gradient-to-br from-[#1a0f08] to-[#0a0908]',
-            rolling ? 'animate-dice-roll border-brass/60' : 'hover:scale-105',
-            result?.isCriticalSuccess ? 'border-yellow-300/90 shadow-[0_0_60px_rgba(253,224,71,0.6)]' : '',
-            result?.isCriticalFail    ? 'border-red-600/90 shadow-[0_0_60px_rgba(220,38,38,0.6)]'    : '',
-            result?.success === true  && !result?.isCriticalSuccess ? 'border-yellow-500/70 shadow-[0_0_40px_rgba(234,179,8,0.35)]'   : '',
-            result?.success === false && !result?.isCriticalFail    ? 'border-red-800/70 shadow-[0_0_40px_rgba(139,26,26,0.35)]'     : '',
-            !result ? 'border-brass/30 shadow-[0_0_20px_rgba(181,146,26,0.1)]' : '',
-          ].join(' ')}
-          style={{ clipPath: 'polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)' }}
-          onClick={handleRoll}
-        >
-          <span
-            ref={diceRef}
-            className="font-black select-none"
-            style={{
-              fontSize: roll !== null ? '2.5rem' : '1.1rem',
-              color: result?.isCriticalSuccess ? '#fde047'
-                   : result?.isCriticalFail    ? '#dc2626'
-                   : result?.success === true  ? '#fbbf24'
-                   : result?.success === false ? '#ef4444'
-                   : '#c9b99a',
-              textShadow: result?.isCriticalSuccess ? '0 0 30px rgba(253,224,71,1), 0 0 60px rgba(253,224,71,0.5)'
-                        : result?.isCriticalFail    ? '0 0 30px rgba(220,38,38,1), 0 0 60px rgba(220,38,38,0.5)'
-                        : result?.success === true  ? '0 0 20px rgba(251,191,36,0.9)'
-                        : result?.success === false ? '0 0 20px rgba(239,68,68,0.9)'
-                        : 'none',
-              transition: 'color 0.3s, text-shadow 0.3s',
-            }}
-          >
-            {rolling ? '?' : roll !== null ? total : 'd20'}
-          </span>
+        <span className="text-xs tracking-widest uppercase text-ghost/60 font-mono">难度 · {diffLabel}</span>
+        <div className="text-2xl font-black text-brass/80 font-serif mt-0.5">
+          技能值 <span className="text-pale">{skillValue}</span>
+          <span className="text-base text-ghost/40 ml-2">/ 需 ≤{threshold}</span>
+        </div>
+        <div className="flex gap-4 mt-1 justify-center text-xs font-mono">
+          <span style={{color:'rgba(74,222,128,0.6)'}}>常 ≤{skillValue}</span>
+          <span style={{color:'rgba(96,165,250,0.6)'}}>困 ≤{Math.floor(skillValue/2)}</span>
+          <span style={{color:'rgba(192,132,252,0.6)'}}>极 ≤{Math.floor(skillValue/5)}</span>
         </div>
       </div>
 
+      {/* 双骰子 */}
+      <div className="flex items-center gap-6">
+        {/* 十位骰 */}
+        <div className="flex flex-col items-center gap-1">
+          <p className="text-xs font-mono text-ghost/40 tracking-widest">十位</p>
+          <div
+            className={dieClass()}
+            style={{
+              clipPath: 'polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)',
+              border: `2px solid ${cfg ? cfg.border : 'rgba(181,146,26,0.3)'}`,
+              boxShadow: cfg ? cfg.glow : '0 0 20px rgba(181,146,26,0.1)',
+            }}
+            onClick={handleRoll}
+          >
+            <span ref={tensRef} className="font-black select-none"
+              style={{
+                fontSize: tens !== null ? '2rem' : '0.9rem',
+                color: cfg ? cfg.color : '#c9b99a',
+                textShadow: cfg ? `0 0 16px ${cfg.color}` : 'none',
+                transition: 'color 0.3s',
+              }}
+            >{rolling ? '?' : tens !== null ? tens : 'd10'}</span>
+          </div>
+        </div>
+
+        {/* 合计 */}
+        <div className="flex flex-col items-center">
+          {result && !rolling ? (
+            <span className="text-4xl font-black font-mono transition-all duration-300"
+              style={{ color: cfg?.color ?? '#e8dcc8', textShadow: cfg ? `0 0 20px ${cfg.color}` : 'none' }}
+            >{String(result.total).padStart(2,'0')}</span>
+          ) : (
+            <span className="text-2xl font-mono text-ghost/20">——</span>
+          )}
+          <p className="text-xs font-mono text-ghost/30 mt-1">1d100</p>
+        </div>
+
+        {/* 个位骰 */}
+        <div className="flex flex-col items-center gap-1">
+          <p className="text-xs font-mono text-ghost/40 tracking-widest">个位</p>
+          <div
+            className={dieClass()}
+            style={{
+              clipPath: 'polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)',
+              border: `2px solid ${cfg ? cfg.border : 'rgba(181,146,26,0.3)'}`,
+              boxShadow: cfg ? cfg.glow : '0 0 20px rgba(181,146,26,0.1)',
+            }}
+            onClick={handleRoll}
+          >
+            <span ref={unitsRef} className="font-black select-none"
+              style={{
+                fontSize: units !== null ? '2rem' : '0.9rem',
+                color: cfg ? cfg.color : '#c9b99a',
+                textShadow: cfg ? `0 0 16px ${cfg.color}` : 'none',
+                transition: 'color 0.3s',
+              }}
+            >{rolling ? '?' : units !== null ? units : 'd10'}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 投掷按钮 */}
       <button className="btn-roll w-48" onClick={handleRoll} disabled={rolling || disabled}>
-        {rolling ? '投掷中…' : roll !== null ? '再次投掷' : '投掷命运之骰'}
+        {rolling ? '投掷中…' : result ? '再次投掷' : '投掷百分骰'}
       </button>
 
+      {/* 判定结果 */}
       {result && !rolling && (
-        <div className={[
-          'px-6 py-2 text-sm font-bold tracking-widest uppercase border animate-result-pop',
-          result.isCriticalSuccess
-            ? 'border-yellow-300/70 text-yellow-300 bg-yellow-900/20'
-            : result.isCriticalFail
-            ? 'border-red-600/70 text-red-400 bg-red-900/20'
-            : result.success
-            ? 'border-yellow-600/50 text-yellow-400 bg-yellow-900/10'
-            : 'border-red-800/50 text-red-400 bg-red-900/10',
-        ].join(' ')}>
-          {result.isCriticalSuccess
-            ? `✦✦ 大成功！(${result.total}) · 调查度 +10 ✦✦`
-            : result.isCriticalFail
-            ? `☠ 大失败！(${result.total}) · 逆天改命已封印`
-            : result.success
-            ? `✦ 检定成功 (${result.total} ≥ ${dc})`
-            : `✘ 检定失败 (${result.total} < ${dc}) — 等待裁决`}
+        <div className="px-6 py-2 text-sm font-bold tracking-widest uppercase border animate-result-pop"
+          style={{ color: cfg.color, borderColor: cfg.border, background: cfg.bg }}
+        >
+          {cfg.label}
+          {result.successLevel === 'critical' && ' · 调查度 +10'}
+          {(result.successLevel === 'failure' || result.successLevel === 'fumble') && !result.success && ' — 等待裁决'}
         </div>
       )}
 

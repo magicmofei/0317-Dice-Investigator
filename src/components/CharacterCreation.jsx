@@ -1,21 +1,23 @@
 import { useState, useMemo } from 'react';
 
+// CoC 7th Ed.
 const ATTRS = [
-  { key: 'STR', label: '力量', abbr: 'STR', desc: '体能、近战、承受伤害的能力' },
-  { key: 'DEX', label: '敏捷', abbr: 'DEX', desc: '速度、反应、躲避危险的能力' },
-  { key: 'POW', label: '意志', abbr: 'POW', desc: '心智防御、感知异常、初始理智' },
-  { key: 'EDU', label: '教育', abbr: 'EDU', desc: '知识储备、线索解读、历史研究' },
-  { key: 'CHA', label: '魅力', abbr: 'CHA', desc: '说服他人、收集情报、社交检定' },
+  { key: 'STR', label: '体魄', abbr: 'STR', desc: '力量、近战、承受伤害、强行破门' },
+  { key: 'DEX', label: '敏锐', abbr: 'DEX', desc: '速度、闪避、潜行、手工操作' },
+  { key: 'POW', label: '意志', abbr: 'POW', desc: '精神防御、感知异常、初始理智值' },
+  { key: 'EDU', label: '学识', abbr: 'EDU', desc: '知识储备、图书馆使用、历史研究' },
+  { key: 'CHA', label: '魅力', abbr: 'CHA', desc: '说服、交涉、情报收集、社交检定' },
 ];
 
-const BASE   = 40;
-const MAX    = 90;
-const POOL   = 100;
+const BASE = 30;
+const MAX  = 80;
+const POOL = 100;
 
 function derive(attrs) {
-  const hp  = Math.floor((attrs.STR + attrs.DEX) / 10) + 5;
-  const san = attrs.POW;
-  return { hp, san };
+  const hp   = Math.floor((attrs.STR + attrs.DEX) / 10) + 5;
+  const san  = attrs.POW;
+  const luck = Math.floor((attrs.CHA + attrs.POW) / 2);
+  return { hp, san, luck };
 }
 
 export default function CharacterCreation({ onStart }) {
@@ -68,7 +70,7 @@ export default function CharacterCreation({ onStart }) {
       <div className="relative w-full max-w-2xl flex flex-col gap-6 animate-fade-slide">
         {/* ── 标题区 ── */}
         <div className="text-center flex flex-col items-center gap-2">
-          <p className="text-xs font-mono tracking-[0.4em] uppercase text-brass/40 mb-1">ARKHAM INVESTIGATOR FILES</p>
+          <p className="text-xs font-mono tracking-[0.4em] uppercase text-brass/40 mb-1">ARKHAM INVESTIGATOR FILES · CoC 7th Ed.</p>
           <h1
             className="text-4xl font-black tracking-widest text-pale/95"
             style={{ fontFamily: "'Playfair Display', Georgia, serif", letterSpacing: '0.18em', textShadow: '0 0 40px rgba(181,146,26,0.25)' }}
@@ -99,7 +101,7 @@ export default function CharacterCreation({ onStart }) {
           </div>
           <div className="text-right">
             <p className="text-xs tracking-widest uppercase text-ghost/50 font-mono mb-1">派生属性</p>
-            <div className="flex gap-4">
+            <div className="flex gap-5">
               <div className="text-center">
                 <p className="text-xs text-ghost/40 font-mono">HP</p>
                 <p className="text-xl font-black" style={{ color: '#4ade80' }}>{derived.hp}</p>
@@ -108,6 +110,11 @@ export default function CharacterCreation({ onStart }) {
               <div className="text-center">
                 <p className="text-xs text-ghost/40 font-mono">SAN</p>
                 <p className="text-xl font-black" style={{ color: '#818cf8' }}>{derived.san}</p>
+              </div>
+              <div className="w-px bg-white/10" />
+              <div className="text-center">
+                <p className="text-xs text-ghost/40 font-mono">幸运</p>
+                <p className="text-xl font-black" style={{ color: '#fbbf24' }}>{derived.luck}</p>
               </div>
             </div>
           </div>
@@ -131,9 +138,15 @@ export default function CharacterCreation({ onStart }) {
               >
                 <div className="flex items-center gap-4">
                   {/* 属性名 */}
-                  <div className="w-20 shrink-0">
+                  <div className="w-24 shrink-0">
                     <p className="text-xs font-mono tracking-widest uppercase" style={{ color }}>{abbr}</p>
                     <p className="text-sm text-pale/70 font-bold">{label}</p>
+                    {isHov && (
+                      <div className="mt-1 flex gap-2">
+                        <span className="text-xs font-mono" style={{color:'rgba(251,191,36,0.7)'}}>困 {Math.floor(val/2)}</span>
+                        <span className="text-xs font-mono" style={{color:'rgba(248,113,113,0.7)'}}>极 {Math.floor(val/5)}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* 滑动条 */}
@@ -188,12 +201,14 @@ export default function CharacterCreation({ onStart }) {
         </div>
 
         {/* ── 派生属性说明 ── */}
-        <div className="panel px-5 py-3 flex gap-6 text-xs text-ghost/40 font-mono">
-          <span>HP = (STR+DEX)÷10 + 5</span>
+        <div className="panel px-5 py-3 flex flex-wrap gap-4 text-xs text-ghost/40 font-mono">
+          <span>HP=(STR+DEX)÷10+5</span>
           <span className="text-ghost/20">|</span>
-          <span>SAN = POW</span>
+          <span>SAN=POW</span>
           <span className="text-ghost/20">|</span>
-          <span>上限 90 · 下限 40 · 池 100</span>
+          <span>范围 {BASE}-{MAX} · 池 {POOL}</span>
+          <span className="text-ghost/20">|</span>
+          <span>Hover 查看困难/极难阈值</span>
         </div>
 
         {/* ── 开始按钮 ── */}
