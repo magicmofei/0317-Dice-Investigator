@@ -1,47 +1,32 @@
 import { useState, useCallback } from 'react';
 
 const INITIAL_STATE = {
-  hp: 10,          // 生命值，满值 10
-  san: 70,         // 理智值，满值 100
-  sceneId: 'prologue',
+  hp: 10,
+  san: 70,
   clues: [],
   isAlive: true,
   isSane: true,
+  investigationProgress: 0, // 0-100 调查度
+  ending: null,             // 最终结局 id
 };
 
 export function useGameState() {
   const [gameState, setGameState] = useState(INITIAL_STATE);
 
-  /** 扣减理智值（用于燃烧理智） */
   const burnSanity = useCallback((amount = 5) => {
     setGameState((prev) => {
       const newSan = Math.max(0, prev.san - amount);
-      return {
-        ...prev,
-        san: newSan,
-        isSane: newSan > 0,
-      };
+      return { ...prev, san: newSan, isSane: newSan > 0 };
     });
   }, []);
 
-  /** 扣减生命值 */
   const takeDamage = useCallback((amount = 1) => {
     setGameState((prev) => {
       const newHp = Math.max(0, prev.hp - amount);
-      return {
-        ...prev,
-        hp: newHp,
-        isAlive: newHp > 0,
-      };
+      return { ...prev, hp: newHp, isAlive: newHp > 0 };
     });
   }, []);
 
-  /** 恢复生命/理智（调试用） */
-  const restore = useCallback(() => {
-    setGameState(INITIAL_STATE);
-  }, []);
-
-  /** 获得线索 */
   const addClue = useCallback((clue) => {
     setGameState((prev) => ({
       ...prev,
@@ -49,20 +34,28 @@ export function useGameState() {
     }));
   }, []);
 
-  /** 跳转到下一场景 */
-  const goToScene = useCallback((sceneId) => {
+  const addInvestigation = useCallback((amount) => {
     setGameState((prev) => ({
       ...prev,
-      sceneId,
+      investigationProgress: Math.min(100, prev.investigationProgress + amount),
     }));
+  }, []);
+
+  const setEnding = useCallback((endingId) => {
+    setGameState((prev) => ({ ...prev, ending: endingId }));
+  }, []);
+
+  const restore = useCallback(() => {
+    setGameState(INITIAL_STATE);
   }, []);
 
   return {
     gameState,
     burnSanity,
     takeDamage,
-    restore,
     addClue,
-    goToScene,
+    addInvestigation,
+    setEnding,
+    restore,
   };
 }
