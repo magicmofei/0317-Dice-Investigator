@@ -214,6 +214,13 @@ export default function App() {
               </div>
             </div>
 
+            <NarrativeBox
+              scene={scene}
+              result={rollResult && resolved ? rollResult : null}
+              glitch={glitchSevere}
+              onContinue={resolved && !isLastNode && !isGameOver ? handleNextNode : null}
+            />
+
             {!resolved && currentNode?.options?.length > 1 && (
               <div className="panel p-4 flex flex-col gap-2">
                 <p className="text-xs tracking-widest uppercase text-ghost/50 font-mono mb-1">选择行动方式</p>
@@ -231,13 +238,6 @@ export default function App() {
                 ))}
               </div>
             )}
-
-            <NarrativeBox
-              scene={scene}
-              result={rollResult && resolved ? rollResult : null}
-              glitch={glitchSevere}
-              onContinue={resolved && !isLastNode && !isGameOver ? handleNextNode : null}
-            />
 
             {!isGameOver && !resolved && (
               <div className="panel p-8">
