@@ -2,6 +2,8 @@ import { useState, useCallback, useRef } from 'react';
 import { CHAPTER1_LIGHTHOUSE, CHAPTER1_SCENE_ORDER, CHAPTER1_META } from './data/chapter1_lighthouse.js';
 import { CHAPTER2_RETURN, CHAPTER2_SCENE_ORDER, CHAPTER2_META } from './data/chapter2_return.js';
 import { useGameState } from './hooks/useGameState.js';
+import { useAudio } from './hooks/useAudio.js';
+import { VERSION, CHANGELOG } from './version.js';
 import DiceRoller from './components/DiceRoller.jsx';
 import NarrativeBox from './components/NarrativeBox.jsx';
 import StatPanel from './components/StatPanel.jsx';
@@ -10,7 +12,6 @@ const ALL_NODES = [...CHAPTER1_LIGHTHOUSE, ...CHAPTER2_RETURN];
 const ALL_ORDER = [...CHAPTER1_SCENE_ORDER, ...CHAPTER2_SCENE_ORDER];
 const NODE_MAP  = Object.fromEntries(ALL_NODES.map((n) => [n.id, n]));
 const CH1_LAST  = CHAPTER1_SCENE_ORDER[CHAPTER1_SCENE_ORDER.length - 1];
-const VERSION   = 'v0.3.0';
 
 // ── 10 种结局判定矩阵 ──────────────────────────────────────────────
 const ENDINGS = [
@@ -120,6 +121,7 @@ function getNextNodeId(currentId) {
 
 export default function App() {
   const { gameState, burnSanity, takeDamage, restore, addClue, addInvestigation } = useGameState();
+  const { muted, toggleMute } = useAudio(gameState.san);
   const [nodeId, setNodeId]           = useState(ALL_ORDER[0]);
   const [choiceIdx, setChoiceIdx]     = useState(0);
   const [rollResult, setRollResult]   = useState(null);
@@ -129,6 +131,7 @@ export default function App() {
   const [ending, setEnding]           = useState(null);     // 触发的结局
   const [devMode, setDevMode]         = useState(false);    // 开发者模式
   const [defyFlash, setDefyFlash]     = useState(false);    // 逆天改命闪屏
+  const [showChangelog, setShowChangelog] = useState(false); // 版本信息弹窗
 
   const currentNode   = NODE_MAP[nodeId];
   const currentChoice = currentNode?.options?.[choiceIdx] ?? currentNode?.options?.[0];
@@ -155,6 +158,8 @@ export default function App() {
 
   // 最终结算逻辑
   const finalizeResult = useCallback((result, choice) => {
+    const isCriticalSuccess = result.roll === 20;
+    const isCriticalFail    = result.roll === 1;
     if (!result.success) {
       const txt = choice.onFailure || '';
       if (txt.includes('体力损失')) takeDamage(1);
@@ -166,9 +171,11 @@ export default function App() {
       const clueMatch = (choice.onSuccess || '').match(/获得【([^】]+)】/);
       if (clueMatch) addClue(clueMatch[1]);
       if (choice.clue) addClue(choice.clue);
-      if (choice.investigationValue) addInvestigation(choice.investigationValue);
+      const baseInv = choice.investigationValue || 0;
+      const bonusInv = isCriticalSuccess ? 10 : 0;
+      if (baseInv + bonusInv > 0) addInvestigation(baseInv + bonusInv);
     }
-    setRollResult(result);
+    setRollResult({ ...result, isCriticalSuccess, isCriticalFail });
     setResolved(true);
   }, [takeDamage, burnSanity, addClue, addInvestigation]);
 
@@ -234,7 +241,7 @@ export default function App() {
   }, [restore]);
 
   if (!scene) return null;
-  const panelState = { hp: gameState.hp, san, inv, clues: gameState.clues, isAlive: gameState.isAlive, isSane: gameState.isSane };
+  const panelState = { hp: gameState.hp, san, discovery: inv, clues: gameState.clues, isAlive: gameState.isAlive, isSane: gameState.isSane };
 
   return (
     <div className={`min-h-screen text-parchment${defyFlash ? ' defy-fate-flash' : ''}`}
@@ -246,8 +253,43 @@ export default function App() {
       {glitchSevere && (<div className="fixed top-0 left-0 right-0 z-40 text-center py-1 text-xs font-mono tracking-widest uppercase" style={{ background: 'rgba(80,0,0,0.7)', color: '#ff4444', animation: 'flickerText 1.5s infinite' }}>██ 理智崩溃临界 · SAN {san} / 100 ██</div>)}
       {glitchMild && !glitchSevere && (<div className="fixed top-0 left-0 right-0 z-40 text-center py-0.5 text-xs font-mono tracking-widest" style={{ background: 'rgba(30,10,0,0.6)', color: '#ff8844', opacity: 0.8 }}>理智动摇 · SAN {san} / 100</div>)}
       <div className="fixed inset-0 pointer-events-none" style={{ backgroundImage: isChapter2 ? 'radial-gradient(ellipse at 50% 100%, rgba(0,20,50,0.5) 0%, transparent 60%)' : 'radial-gradient(ellipse at 10% 90%, rgba(10,40,15,0.08) 0%, transparent 50%)' }} />
+      {showChangelog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95" onClick={() => setShowChangelog(false)}>
+          <div className="panel p-8 max-w-lg w-full mx-4 flex flex-col gap-4 max-h-[80vh] overflow-y-auto"
+            style={{ border:'1px solid rgba(181,146,26,0.3)' }}
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-black tracking-widest text-pale" style={{ fontFamily:"'Playfair Display',serif" }}>更新日志</h2>
+              <span className="text-xs font-mono px-2 py-0.5 border" style={{ color:'#b5921a', borderColor:'rgba(181,146,26,0.3)' }}>{VERSION}</span>
+            </div>
+            <div className="w-full h-px bg-brass/20" />
+            {CHANGELOG.map((entry, i) => (
+              <div key={entry.version} className="flex flex-col gap-2">
+                <div className="flex items-baseline gap-3">
+                  <span className="font-black font-mono text-sm" style={{ color: i===0?'#b5921a':'rgba(255,255,255,0.4)' }}>{entry.version}</span>
+                  <span className="text-xs text-ghost/40 font-mono">{entry.date}</span>
+                  <span className="text-xs text-pale/60 font-bold">{entry.title}</span>
+                  {i===0 && <span className="text-xs px-1.5 py-0.5 font-mono" style={{ background:'rgba(181,146,26,0.15)', color:'#b5921a', border:'1px solid rgba(181,146,26,0.3)' }}>LATEST</span>}
+                </div>
+                <ul className="flex flex-col gap-1 pl-3">
+                  {entry.changes.map((c, j) => (
+                    <li key={j} className="text-xs text-pale/60 flex items-start gap-2">
+                      <span className="text-brass/40 mt-0.5">◈</span>
+                      <span>{c}</span>
+                    </li>
+                  ))}
+                </ul>
+                {i < CHANGELOG.length - 1 && <div className="w-full h-px bg-white/5 mt-1" />}
+              </div>
+            ))}
+            <button className="btn-roll w-full mt-2" onClick={() => setShowChangelog(false)}>关闭</button>
+          </div>
+        </div>
+      )}
       {ending && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95"><div className="panel p-10 max-w-lg text-center flex flex-col items-center gap-5" style={{ border: '1px solid rgba(255,255,255,0.15)' }}><p className="text-xs font-mono tracking-widest uppercase mb-1" style={{ color: ending.type==='success'?'#60a5fa':ending.type==='failure'?'#f87171':'#c084fc' }}>{ending.type==='success'?'── 成功结局 ──':ending.type==='failure'?'── 失败结局 ──':'── 隐藏结局 ──'}</p><h2 className="text-3xl font-black tracking-widest" style={{ fontFamily:"'Playfair Display',serif", color: ending.type==='success'?'#60a5fa':ending.type==='failure'?'#f87171':'#c084fc' }}>{ending.title}</h2><div className="w-full h-px my-2 bg-white/10" /><p className="text-pale/80 text-sm leading-loose">{ending.desc}</p><div className="w-full h-px my-2 bg-white/10" /><p className="text-ghost/40 text-xs font-mono">SAN {san} / 100 · 调查度 {inv}% · 线索 {gameState.clues.length} 条</p><button className="btn-roll w-full mt-2" onClick={handleRestart}>重新调查</button></div></div>)}
-      {pendingResult && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"><div className="panel p-8 max-w-md text-center flex flex-col items-center gap-4" style={{ border: '1px solid rgba(239,68,68,0.4)' }}><p className="text-xs font-mono tracking-widest uppercase text-red-400">── 骰子调查员特色 ──</p><h3 className="text-xl font-black text-pale" style={{ fontFamily:"'Playfair Display',serif" }}>命运的裂缝</h3><p className="text-pale/70 text-sm leading-relaxed">你掷出了 <span className="text-red-400 font-bold">{pendingResult.result.total}</span>，目标难度 <span className="font-bold" style={{color:accentColor}}>{scene?.dc}</span>。差距：<span className="text-red-400 font-bold">{(scene?.dc??0)-pendingResult.result.total}</span> 点。</p><div className="w-full flex flex-col gap-3 mt-2"><button onClick={handleDefyFate} disabled={san<=10} className="w-full px-4 py-3 text-sm border transition-all disabled:opacity-30" style={{ borderColor:'rgba(239,68,68,0.5)',color:'#f87171',background:'rgba(239,68,68,0.08)' }}>🔥 燃烧理智（-10 SAN）· 骰点 +3 · 逆天改命</button><button onClick={handleAcceptFate} className="w-full px-4 py-3 text-sm border transition-all" style={{ borderColor:'rgba(255,255,255,0.1)',color:'rgba(255,255,255,0.4)' }}>接受命运 · 承担失败后果</button></div>{san<=10&&<p className="text-red-400/60 text-xs">理智已不足，无法再燃烧。</p>}</div></div>)}
+      {pendingResult && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"><div className="panel p-8 max-w-md text-center flex flex-col items-center gap-4" style={{ border: '1px solid rgba(239,68,68,0.4)' }}><p className="text-xs font-mono tracking-widest uppercase text-red-400">── 骰子调查员特色 ──</p><h3 className="text-xl font-black text-pale" style={{ fontFamily:"'Playfair Display',serif" }}>{pendingResult.result.roll === 1 ? '大失败 · 命运已定' : '命运的裂缝'}</h3><p className="text-pale/70 text-sm leading-relaxed">你掷出了 <span className={`font-bold ${pendingResult.result.roll === 1 ? 'text-red-500' : 'text-red-400'}`}>{pendingResult.result.roll === 1 ? '☠ 1（大失败）' : pendingResult.result.total}</span>，目标难度 <span className="font-bold" style={{color:accentColor}}>{scene?.dc}</span>。{pendingResult.result.roll !== 1 && <span>差距：<span className="text-red-400 font-bold">{(scene?.dc??0)-pendingResult.result.total}</span> 点。</span>}</p>{pendingResult.result.roll === 1 && <p className="text-red-500/70 text-xs italic">大失败——命运不允许任何挣扎，逆天改命已被封印。</p>}<div className="w-full flex flex-col gap-3 mt-2"><button onClick={handleDefyFate} disabled={san<=10 || pendingResult.result.roll === 1}
+                className="w-full px-4 py-3 text-sm border transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                style={{ borderColor:'rgba(239,68,68,0.5)',color:'#f87171',background:'rgba(239,68,68,0.08)' }}>{pendingResult.result.roll === 1 ? '🔒 逆天改命已封印（大失败）' : '🔥 燃烧理智（-10 SAN）· 骰点 +3 · 逆天改命'}</button><button onClick={handleAcceptFate} className="w-full px-4 py-3 text-sm border transition-all" style={{ borderColor:'rgba(255,255,255,0.1)',color:'rgba(255,255,255,0.4)' }}>接受命运 · 承担失败后果</button></div>{san<=10&&pendingResult.result.roll!==1&&<p className="text-red-400/60 text-xs">理智已不足，无法再燃烧。</p>}</div></div>)}
       {bridge && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95"><div className="panel p-10 max-w-lg text-center flex flex-col items-center gap-5" style={{ border:'1px solid rgba(96,165,250,0.3)' }}><p className="text-5xl">🌊</p><h2 className="text-2xl font-black tracking-widest" style={{ fontFamily:"'Playfair Display',serif",color:'#60a5fa' }}>✦ 第一章完结 ✦</h2><p className="text-pale/50 text-sm">线索 {gameState.clues.length} 条 · 调查度 {inv}% · SAN {san} / 100</p><div className="w-full h-px bg-blue-900/30" /><p className="text-pale/80 text-sm leading-loose italic">三个月后，你收到了米娅·科斯塔的来信。<br/>她写道：「它又亮了。我在那里。请来。」<br/>你的调查还没有结束。</p><button className="btn-roll w-full" style={{ borderColor:'rgba(96,165,250,0.5)',color:'#60a5fa' }} onClick={handleEnterCh2}>进入第二章：归来的灯光 →</button></div></div>)}
       {isGameOver && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md"><div className="panel p-10 max-w-md text-center flex flex-col items-center gap-6" style={{ border:'1px solid rgba(139,26,26,0.4)' }}><p className="text-6xl">☽</p><h2 className="text-2xl font-black text-red-500 tracking-widest uppercase" style={{ fontFamily:"'Playfair Display',serif" }}>{!gameState.isAlive?'调查员已倒下':'理智已崩溃'}</h2><p className="text-pale/60 text-sm leading-loose">{!gameState.isAlive?'黑暗终结了你的调查。':'你的心智已无法承受。现实与幻觉的边界彻底消融。'}</p><button className="btn-roll w-full" onClick={handleRestart}>重燃蜡烛，重新调查</button></div></div>)}
       <header className="relative border-b border-emerald-900/20 bg-black/50 backdrop-blur-sm" style={{ marginTop: glitchMild||glitchSevere?'1.5rem':0 }}>
@@ -261,7 +303,22 @@ export default function App() {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs font-mono px-2 py-0.5 border" style={{ color:accentColor, borderColor:accentBorder }}>{isChapter2?'第二章':'第一章'} · {nodeIndex} / {ALL_ORDER.length}</span>
-            <span className="text-xs font-mono text-ghost/25 border border-ghost/10 px-2 py-0.5">{VERSION}</span>
+            <button
+              onClick={() => setShowChangelog(true)}
+              className="text-xs font-mono border px-2 py-0.5 transition-all duration-200 hover:border-brass/40 hover:text-brass/70"
+              style={{ borderColor:'rgba(255,255,255,0.1)', color:'rgba(255,255,255,0.25)' }}
+              title="点击查看版本更新说明"
+            >{VERSION}</button>
+            <button
+              onClick={toggleMute}
+              className="text-xs tracking-widest font-mono border px-3 py-1.5 transition-all duration-200"
+              style={muted
+                ? { borderColor:'rgba(255,255,255,0.1)', color:'rgba(255,255,255,0.25)' }
+                : { borderColor:'rgba(96,165,250,0.3)', color:'rgba(96,165,250,0.7)' }}
+              title={muted ? '取消静音' : '静音'}
+            >
+              {muted ? '🔇' : '🔊'}
+            </button>
             <button
               onClick={() => setDevMode(v => !v)}
               className="text-xs tracking-widest uppercase font-mono border px-3 py-1.5 transition-all duration-200"

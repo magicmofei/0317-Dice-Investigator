@@ -55,12 +55,14 @@ export default function DiceRoller({ dc, onResult, onBurnSanity, sanity, disable
       intervalRef.current = null;
       const finalRoll    = Math.ceil(Math.random() * 20);
       const finalSuccess = finalRoll >= dc;
+      const isCriticalSuccess = finalRoll === 20;
+      const isCriticalFail    = finalRoll === 1;
       setRoll(finalRoll);
-      setResult({ total: finalRoll, success: finalSuccess });
+      setResult({ total: finalRoll, success: finalSuccess, isCriticalSuccess, isCriticalFail });
       setRolling(false);
       if (!calledRef.current) {
         calledRef.current = true;
-        onResult({ roll: finalRoll, bonus: 0, total: finalRoll, success: finalSuccess });
+        onResult({ roll: finalRoll, bonus: 0, total: finalRoll, success: finalSuccess, isCriticalSuccess, isCriticalFail });
       }
     }, 700);
   }
@@ -80,8 +82,10 @@ export default function DiceRoller({ dc, onResult, onBurnSanity, sanity, disable
             'w-32 h-32 flex items-center justify-center select-none cursor-pointer transition-all duration-300',
             'border-2 bg-gradient-to-br from-[#1a0f08] to-[#0a0908]',
             rolling ? 'animate-dice-roll border-brass/60' : 'hover:scale-105',
-            result?.success === true  ? 'border-yellow-500/70 shadow-[0_0_40px_rgba(234,179,8,0.35)]'   : '',
-            result?.success === false ? 'border-red-800/70 shadow-[0_0_40px_rgba(139,26,26,0.35)]'     : '',
+            result?.isCriticalSuccess ? 'border-yellow-300/90 shadow-[0_0_60px_rgba(253,224,71,0.6)]' : '',
+            result?.isCriticalFail    ? 'border-red-600/90 shadow-[0_0_60px_rgba(220,38,38,0.6)]'    : '',
+            result?.success === true  && !result?.isCriticalSuccess ? 'border-yellow-500/70 shadow-[0_0_40px_rgba(234,179,8,0.35)]'   : '',
+            result?.success === false && !result?.isCriticalFail    ? 'border-red-800/70 shadow-[0_0_40px_rgba(139,26,26,0.35)]'     : '',
             !result ? 'border-brass/30 shadow-[0_0_20px_rgba(181,146,26,0.1)]' : '',
           ].join(' ')}
           style={{ clipPath: 'polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)' }}
@@ -92,10 +96,14 @@ export default function DiceRoller({ dc, onResult, onBurnSanity, sanity, disable
             className="font-black select-none"
             style={{
               fontSize: roll !== null ? '2.5rem' : '1.1rem',
-              color: result?.success === true  ? '#fbbf24'
+              color: result?.isCriticalSuccess ? '#fde047'
+                   : result?.isCriticalFail    ? '#dc2626'
+                   : result?.success === true  ? '#fbbf24'
                    : result?.success === false ? '#ef4444'
                    : '#c9b99a',
-              textShadow: result?.success === true  ? '0 0 20px rgba(251,191,36,0.9)'
+              textShadow: result?.isCriticalSuccess ? '0 0 30px rgba(253,224,71,1), 0 0 60px rgba(253,224,71,0.5)'
+                        : result?.isCriticalFail    ? '0 0 30px rgba(220,38,38,1), 0 0 60px rgba(220,38,38,0.5)'
+                        : result?.success === true  ? '0 0 20px rgba(251,191,36,0.9)'
                         : result?.success === false ? '0 0 20px rgba(239,68,68,0.9)'
                         : 'none',
               transition: 'color 0.3s, text-shadow 0.3s',
@@ -113,11 +121,19 @@ export default function DiceRoller({ dc, onResult, onBurnSanity, sanity, disable
       {result && !rolling && (
         <div className={[
           'px-6 py-2 text-sm font-bold tracking-widest uppercase border animate-result-pop',
-          result.success
+          result.isCriticalSuccess
+            ? 'border-yellow-300/70 text-yellow-300 bg-yellow-900/20'
+            : result.isCriticalFail
+            ? 'border-red-600/70 text-red-400 bg-red-900/20'
+            : result.success
             ? 'border-yellow-600/50 text-yellow-400 bg-yellow-900/10'
             : 'border-red-800/50 text-red-400 bg-red-900/10',
         ].join(' ')}>
-          {result.success
+          {result.isCriticalSuccess
+            ? `✦✦ 大成功！(${result.total}) · 调查度 +10 ✦✦`
+            : result.isCriticalFail
+            ? `☠ 大失败！(${result.total}) · 逆天改命已封印`
+            : result.success
             ? `✦ 检定成功 (${result.total} ≥ ${dc})`
             : `✘ 检定失败 (${result.total} < ${dc}) — 等待裁决`}
         </div>
